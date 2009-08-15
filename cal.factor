@@ -1,10 +1,15 @@
-USING: accessors cal.skins calendar enter fonts.syntax fry
-grouping io.styles kernel math math.functions math.order
-math.parser models.combinators monads sequences ui
-ui.baseline-alignment ui.gadgets ui.gadgets.buttons
-ui.gadgets.labels ui.gadgets.layout ui.gadgets.sliders
-ui.gadgets.tracks ;
+USING: accessors cal.skins calendar db.sqlite db.types enter
+fonts.syntax fry grouping io.pathnames io.styles kernel math
+math.functions math.order math.parser models.combinators monads
+persistency sequences ui ui.baseline-alignment ui.gadgets
+ui.gadgets.model-buttons ui.gadgets.labels ui.gadgets.layout
+ui.gadgets.poppers ui.gadgets.sliders ui.gadgets.tracks
+ui.gadgets.biggies ui.gadgets.magic-scrollers models
+ui.gadgets.frames ;
 IN: cal
+
+STORED-TUPLE: event { day DATE } { text { VARCHAR 300 } } ;
+home ".events" append-path <sqlite-db> event define-db
 
 : multiple-of-7 ( a -- a' ) 7 / ceiling 7 * ;
 : daylist ( viewedDate days -- timelist ) dup 0 = [ drop 1 ]
@@ -18,8 +23,10 @@ USE: cal.skins
 : <day> ( viewedDate timestamp -- gadget )
     tuck [ month>> ] bi@ = not
     vertical day new-track swap >>other-month
-    over day>> number>string <label> f track-add
-    swap >>time <mozilla-theme> [ >>interior ] keep >>boundary ;
+    over day>> number>string <label> f add-gadget*
+    over >>time <mozilla-theme> [ >>interior ] keep >>boundary
+    event new rot >>day get-tuples [ text>> ] map
+    <model> <popper> <magic-scroller> 1 add-gadget* <biggie> ;
 
 : calendar ( viewedDate daynums -- gadget ) over [ daylist ] dip '[
     7 group [ [ [ _ swap <day> ,% 1 ] each ] <hbox> ,% 1 ] each
@@ -29,9 +36,9 @@ USE: cal.skins
     [
         [ dup
             <spacer>
-            [ [ 1 months time- month>> month-name ] fmap <label-control> FONT: 18 ; <button*> -1 >>value -> ]
+            [ [ 1 months time- month>> month-name ] fmap <label-control> FONT: 18 ; <model-button> -1 >>value -> ]
             [ [ month>> month-name ] fmap <label-control> FONT: 24 bold ; , ]
-            [ [ 1 months time+ month>> month-name ] fmap <label-control> FONT: 18 ; <button*> 1 >>value -> ]
+            [ [ 1 months time+ month>> month-name ] fmap <label-control> FONT: 18 ; <model-button> 1 >>value -> ]
             tri 2merge [ months time+ 1 >>day ] 2fmap <spacer>
         ] with-self now >>value
     ] <hbox> { 25 0 } >>gap +baseline+ >>align MONTHS ,
