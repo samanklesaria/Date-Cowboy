@@ -4,11 +4,10 @@ math.functions math.order math.parser models.combinators monads
 persistency sequences ui ui.baseline-alignment ui.gadgets
 ui.gadgets.model-buttons ui.gadgets.labels ui.gadgets.layout
 ui.gadgets.poppers ui.gadgets.sliders ui.gadgets.tracks
-ui.gadgets.biggies ui.gadgets.magic-scrollers models
-ui.gadgets.frames ;
+ui.gadgets.biggies ui.gadgets.magic-scrollers models ;
 IN: cal
 
-STORED-TUPLE: event { day DATE } { text { VARCHAR 300 } } ;
+STORED-TUPLE: event { text { VARCHAR 300 } } { day DATE } ;
 home ".events" append-path <sqlite-db> event define-db
 
 : multiple-of-7 ( a -- a' ) 7 / ceiling 7 * ;
@@ -19,14 +18,17 @@ home ".events" append-path <sqlite-db> event define-db
     [ dupd before? ] curry [ 1 days time+ dup ] produce nip ;
 
 TUPLE: day < track other-month time ;
-USE: cal.skins
 : <day> ( viewedDate timestamp -- gadget )
     tuck [ month>> ] bi@ = not
     vertical day new-track swap >>other-month
     over day>> number>string <label> f add-gadget*
     over >>time <mozilla-theme> [ >>interior ] keep >>boundary
-    event new rot >>day get-tuples [ text>> ] map
-    <model> <popper> <magic-scroller> 1 add-gadget* <biggie> ;
+    event new rot [ 
+        >>day get-tuples [ text>> ] map <model> <popper>
+    ] keep
+    [ '[ event new _ >>day swap >>text store-tuple ] >>unfocus-hook ]
+    [ '[ event new _ >>day swap >>text remove-tuples ] >>focus-hook ] bi
+    <magic-scroller> 1 add-gadget* <biggie> ;
 
 : calendar ( viewedDate daynums -- gadget ) over [ daylist ] dip '[
     7 group [ [ [ _ swap <day> ,% 1 ] each ] <hbox> ,% 1 ] each
