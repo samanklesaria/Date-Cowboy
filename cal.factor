@@ -45,11 +45,11 @@ expr = time? am/pm? .* => [[ but-last form-time ]]
     dup parent>> children>>
     [
         dupd over control-value find-time
-        [ [ [ control-value find-time ] bi@ before? ] insert-sorted ]
+        [ [ delete ] [ [ [ control-value find-time ] bi@ before? ] insert-sorted ] 2bi ]
         [
             2dup tuck index 1 - swap ?nth
             dup [ control-value find-time ] when
-            [ prefix ] [ nip ] if
+            [ [ swap delete ] [ prefix ] 2bi ] [ nip ] if
         ] if
         swap parent>> (>>children)
     ]
