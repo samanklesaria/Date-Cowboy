@@ -1,21 +1,69 @@
-USING: accessors cal.skins calendar db.sqlite db.types enter
-fonts.syntax fry grouping io.pathnames io.styles kernel math
-math.functions math.order math.parser models.combinators monads
-persistency sequences ui ui.baseline-alignment ui.gadgets
-ui.gadgets.model-buttons ui.gadgets.labels ui.gadgets.layout
-ui.gadgets.poppers ui.gadgets.sliders ui.gadgets.tracks
-ui.gadgets.biggies ui.gadgets.magic-scrollers models ;
+USING: accessors arrays cal.skins calendar combinators db.sqlite
+db.tuples db.types enter fonts.syntax fry grouping io.pathnames
+io.styles kernel locals math math.functions math.intervals
+math.order math.parser models models.combinators monads peg
+peg.ebnf persistency sequences sequences.extras ui
+ui.baseline-alignment ui.gadgets ui.gadgets.biggies
+ui.gadgets.labels ui.gadgets.layout ui.gadgets.magic-scrollers
+ui.gadgets.model-buttons ui.gadgets.poppers ui.gadgets.sliders
+ui.gadgets.tracks splitting ;
 IN: cal
 
-STORED-TUPLE: event { text { VARCHAR 300 } } { day DATE } ;
+STORED-TUPLE: event { text { VARCHAR 300 } } { day INTEGER } { pos INTEGER } ;
 home ".events" append-path <sqlite-db> event define-db
 
 : multiple-of-7 ( a -- a' ) 7 / ceiling 7 * ;
+
+: >minutes ( timestamp -- seconds ) unix-1970 (time-) 60 / >integer ;
+
+: whole-day ( timestamp -- interval ) dup 1 days time+ [ >minutes ] bi@ [a,b) ;
+
 : daylist ( viewedDate days -- timelist ) dup 0 = [ drop 1 ]
     [ dup 28 = [ drop [ beginning-of-month ] [ days-in-month ] bi ] when
         [ beginning-of-week ] [ multiple-of-7 ] bi*
     ] if [ 1 days time- dup ] dip days time+
     [ dupd before? ] curry [ 1 days time+ dup ] produce nip ;
+
+: form-time ( list -- minutes )
+    dup first [
+        first2 {
+           { "PM" [ 720 + ] }
+           { "AM" [ ] }
+           { f [ dup 60 360 [a,b] interval-contains? [ 720 + ] when ] }
+        } case
+    ] [ drop f ] if ;
+
+EBNF: find-time
+i = [0-9]
+space = " " => [[ drop ignore ]]
+time = i i? ":" i i space => [[ ":" 1array split1 [ sift ] dip [ string>number ] bi@ swap 60 * + ]]
+am/pm = ("AM" | "PM") space
+expr = time? am/pm? .* => [[ but-last form-time ]]
+;EBNF
+
+: insert-event ( popped -- pos )
+    dup parent>> children>>
+    [
+        dupd over control-value find-time
+        [ [ [ control-value find-time ] bi@ before? ] insert-sorted ]
+        [
+            2dup tuck index 1 - swap ?nth
+            dup [ control-value find-time ] when
+            [ prefix ] [ nip ] if
+        ] if
+        swap parent>> (>>children)
+    ]
+    [ drop relayout ]
+    [ index ] 2tri ;
+
+:: handle-unfocus ( p d -- )
+    [let* | v [ p control-value ] tm [ v find-time ] |
+        tm [
+            d tm minutes time+
+        ] [ d ] if
+        p insert-event
+        event new swap >>pos swap >minutes >>day v >>text store-tuple
+    ] ;
 
 TUPLE: day < track other-month time ;
 : <day> ( viewedDate timestamp -- gadget )
@@ -24,10 +72,10 @@ TUPLE: day < track other-month time ;
     over day>> number>string <label> f add-gadget*
     over >>time <mozilla-theme> [ >>interior ] keep >>boundary
     event new rot [ 
-        >>day get-tuples [ text>> ] map <model> <popper>
+        whole-day >>day <query> swap >>tuple "pos" >>order get-tuples [ text>> ] map <model> <popper>
     ] keep
-    [ '[ event new _ >>day swap >>text store-tuple ] >>unfocus-hook ]
-    [ '[ event new _ >>day swap >>text remove-tuples ] >>focus-hook ] bi
+    [ '[ _ handle-unfocus ] >>unfocus-hook ]
+    [ '[ control-value event new _ whole-day >>day swap >>text remove-tuples ] >>focus-hook ] bi
     <magic-scroller> 1 add-gadget* <biggie> ;
 
 : calendar ( viewedDate daynums -- gadget ) over [ daylist ] dip '[
