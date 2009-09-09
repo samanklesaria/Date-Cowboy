@@ -18,6 +18,8 @@ home ".events" append-path <sqlite-db> event define-db
 
 : whole-day ( timestamp -- interval ) dup 1 days time+ [ >minutes ] bi@ [a,b) ;
 
+: control-text ( control -- text ) control-value text>> ;
+
 : daylist ( viewedDate days -- timelist ) dup 0 = [ drop 1 ]
     [ dup 28 = [ drop [ beginning-of-month ] [ days-in-month ] bi ] when
         [ beginning-of-week ] [ multiple-of-7 ] bi*
@@ -44,11 +46,11 @@ expr = time? am/pm? .* => [[ but-last form-time ]]
 : insert-event ( popped -- pos )
     dup parent>> children>>
     [
-        dupd over control-value find-time
-        [ [ delete ] [ [ [ control-value find-time ] bi@ before? ] insert-sorted ] 2bi ]
+        dupd over control-text find-time
+        [ [ delete ] [ [ [ control-value day>> ] bi@ before? ] insert-sorted ] 2bi ]
         [
             2dup tuck index 1 - swap ?nth
-            dup [ control-value find-time ] when
+            dup [ control-text find-time ] when
             [ [ delete ] [ swap prefix ] 2bi ] [ nip ] if
         ] if
         swap parent>> (>>children)
@@ -57,12 +59,12 @@ expr = time? am/pm? .* => [[ but-last form-time ]]
     [ index ] 2tri ;
 
 :: handle-unfocus ( p d -- )
-    [let* | v [ p control-value ] tm [ v find-time ] |
+    [let* | v [ p control-value ] tm [ v text>> find-time ] |
         tm [
-            d tm minutes time+
-        ] [ d ] if
+            v d tm minutes time+ >minutes swap (>>day)
+        ] when
         p insert-event
-        event new swap >>pos swap >minutes >>day v >>text store-tuple
+        v swap >>pos store-tuple
     ] ;
 
 TUPLE: day < track other-month time ;
@@ -72,10 +74,11 @@ TUPLE: day < track other-month time ;
     over day>> number>string <label> f add-gadget*
     over >>time <mozilla-theme> [ >>interior ] keep >>boundary
     event new rot [ 
-        whole-day >>day <query> swap >>tuple "pos" >>order get-tuples [ text>> ] map <model> <popper>
+        whole-day >>day <query> swap >>tuple "pos" >>order get-tuples <model> <popper>
+        [ text>> ] >>quot [ control-value remove-tuples ] >>focus-hook 
     ] keep
-    [ '[ _ handle-unfocus ] >>unfocus-hook ]
-    [ '[ control-value event new _ whole-day >>day swap >>text remove-tuples ] >>focus-hook ] bi
+    [ >minutes '[ event new _ >>day swap >>text ] >>setter-quot ]
+    [ '[ _ handle-unfocus ] >>unfocus-hook ] bi
     <magic-scroller> 1 add-gadget* <biggie> ;
 
 : calendar ( viewedDate daynums -- gadget ) over [ daylist ] dip '[
@@ -94,4 +97,5 @@ TUPLE: day < track other-month time ;
     ] <hbox> { 25 0 } >>gap +baseline+ >>align MONTHS ,
     28 0 28 7 <slider*> TOOLBAR -> [ CAL calendar ,% 1 ] 2$> ,
     ] with-interface { 500 400 } >>pref-dim "Date Cowboy" open-window ;
+
 ENTER: [ calWindow ] with-ui ;
