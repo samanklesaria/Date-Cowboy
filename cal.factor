@@ -6,10 +6,10 @@ peg.ebnf persistency sequences sequences.extras ui
 ui.baseline-alignment ui.gadgets ui.gadgets.biggies
 ui.gadgets.labels ui.gadgets.layout ui.gadgets.magic-scrollers
 ui.gadgets.model-buttons ui.gadgets.poppers ui.gadgets.sliders
-ui.gadgets.tracks splitting ;
+ui.gadgets.tracks splitting ui.tools.inspector ;
 IN: cal
 
-STORED-TUPLE: event { text { VARCHAR 300 } } { day INTEGER } { pos INTEGER } ;
+STORED-TUPLE: event { text { VARCHAR 300 } } { day BIG-INTEGER } { pos INTEGER } ;
 home ".events" append-path <sqlite-db> event define-db
 
 : multiple-of-7 ( a -- a' ) 7 / ceiling 7 * ;
@@ -64,7 +64,7 @@ expr = time? am/pm? .* => [[ but-last form-time ]]
             v d tm minutes time+ >minutes swap (>>day)
         ] when
         p insert-event
-        v swap >>pos store-tuple
+        v swap >>pos f >>id store-tuple
     ] ;
 
 TUPLE: day < track other-month time ;
@@ -75,7 +75,7 @@ TUPLE: day < track other-month time ;
     over >>time <mozilla-theme> [ >>interior ] keep >>boundary
     event new rot [ 
         whole-day >>day <query> swap >>tuple "pos" >>order get-tuples <model> <popper>
-        [ text>> ] >>quot [ control-value remove-tuples ] >>focus-hook 
+        [ text>> ] >>quot [ control-value remove-tuples ] >>focus-hook
     ] keep
     [ >minutes '[ event new _ >>day swap >>text ] >>setter-quot ]
     [ '[ _ handle-unfocus ] >>unfocus-hook ] bi
