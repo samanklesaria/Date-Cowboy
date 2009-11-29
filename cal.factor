@@ -1,12 +1,13 @@
-USING: accessors arrays cal.skins calendar combinators db.sqlite
-db.tuples db.types enter fonts.syntax fry grouping io.pathnames
-io.styles kernel locals math math.functions math.intervals
-math.order math.parser models models.combinators monads peg
-peg.ebnf persistency sequences sequences.extras ui
-ui.baseline-alignment ui.gadgets ui.gadgets.biggies
-ui.gadgets.labels ui.gadgets.layout ui.gadgets.magic-scrollers
-ui.gadgets.model-buttons ui.gadgets.poppers ui.gadgets.sliders
-ui.gadgets.tracks splitting ui.tools.inspector ;
+USING: accessors arrays cal.skins calendar combinators
+db.sqlite db.tuples db.types enter fonts.syntax fry grouping
+io.pathnames io.styles kernel locals math math.functions
+math.intervals math.order math.parser models models.combinators
+models.merge monads peg peg.ebnf persistency quotations
+sequences splitting ui ui.baseline-alignment ui.gadgets
+ui.gadgets.biggies ui.gadgets.labels ui.gadgets.layout
+ui.gadgets.magic-scrollers ui.gadgets.model-buttons
+ui.gadgets.poppers ui.gadgets.sliders ui.gadgets.tracks
+models.filter ;
 IN: cal
 
 STORED-TUPLE: event { text { VARCHAR 300 } } { day BIG-INTEGER } { pos INTEGER } ;
@@ -82,20 +83,25 @@ TUPLE: day < track other-month time ;
     <magic-scroller> 1 add-gadget* <biggie> ;
 
 : calendar ( viewedDate daynums -- gadget ) over [ daylist ] dip '[
-    7 group [ [ [ _ swap <day> ,% 1 ] each ] <hbox> ,% 1 ] each
-    ] <vbox> ;
+    7 group [ [ [ _ over <day> ->% 1 swap 1quotation <$ ] map ] <hbox> ,% 1 ] map
+    ] <vbox> swap concat merge >>model ;
 
-: calWindow ( -- ) [ [ $ MONTHS $ $ CAL $ [ $ TOOLBAR $ ] <hbox> , ] <vbox>
-    [
-        [ dup
-            <spacer>
-            [ [ 1 months time- month>> month-name ] fmap <label-control> FONT: 18 ; <model-button> -1 >>value -> ]
-            [ [ month>> month-name ] fmap <label-control> FONT: 24 bold ; , ]
-            [ [ 1 months time+ month>> month-name ] fmap <label-control> FONT: 18 ; <model-button> 1 >>value -> ]
-            tri 2merge [ months time+ 1 >>day ] 2fmap <spacer>
-        ] with-self now >>value
-    ] <hbox> { 25 0 } >>gap +baseline+ >>align MONTHS ,
-    28 0 28 7 <slider*> TOOLBAR -> [ CAL calendar ,% 1 ] 2$> ,
+: calWindow ( -- )
+    [ [ $ MONTHS $ $ CAL $ [ $ TOOLBAR $ ] <hbox> , ] <vbox>
+        [
+            [ dup
+                <spacer>
+                [ [ 1 months time- month>> month-name ] fmap <label-control>
+                    FONT: 18 ; <model-button> -1 >>value -> ]
+                [ [ month>> month-name ] fmap <label-control> FONT: 24 bold ; , ]
+                [ [ 1 months time+ month>> month-name ] fmap <label-control>
+                    FONT: 18 ; <model-button> 1 >>value -> ]
+                tri 2merge [ months time+ 1 >>day ] smart fmap <spacer>
+            ] with-self now >>value
+        ] <hbox> { 25 0 } >>gap +baseline+ >>align MONTHS ,
+        [ 28 0 28 7 <slider*> TOOLBAR ->
+            [ updates <discrete> 2merge ] keep [ CAL calendar ->% 1 ] smart* bind
+        ] with-self ,
     ] with-interface { 500 400 } >>pref-dim "Date Cowboy" open-window ;
 
 ENTER: [ calWindow ] with-ui ;
